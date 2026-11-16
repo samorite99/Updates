@@ -1,0 +1,22 @@
+{
+  "name": "shopnex-backend",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "seed": "node scripts/seed.mjs",
+    "ui-check": "node scripts/ui-check.mjs",
+    "fake-webhook": "node scripts/fake-webhook.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "backup": "node scripts/backup.mjs",
+    "db:check": "node scripts/db-check.mjs"
+  },
+  "optionalDependencies": {
+    "pg": "^8.11.0"
+  }
+}

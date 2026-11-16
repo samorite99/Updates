@@ -1,0 +1,21 @@
+// End-to-end check against a running server: ADMIN_PHONE=+2348000000001 npm start, then npm run smoke
+const B = 'http://localhost:' + (process.env.PORT || 3000);
+const call = async (m, p, t, b) => { const r = await fetch(B + p, { method: m, headers: { 'Content-Type': 'application/json', ...(t && { Authorization: 'Bearer ' + t }) }, body: b && JSON.stringify(b) }); const j = await r.json(); if (!r.ok) throw new Error(`${m} ${p} -> ${r.status} ${j.error}`); return j; };
+const login = async phone => { const { devCode } = await call('POST', '/auth/otp', 0, { phone }); return call('POST', '/auth/verify', 0, { phone, code: devCode }); };
+const adminLogin = async phone => { const j = await call('POST', '/auth/login', 0, { identifier: phone, password: 'Demo@1234' }); return j.twofa ? call('POST', '/auth/2fa', 0, { challenge: j.challenge, code: j.devCode }) : j; };
+const adm = await adminLogin(process.env.ADMIN_PHONE || '+2348000000001'), sel = await login('+2348022222222'), buy = await login('+2348033333333'), rid = await login('+2348044444444');
+await call('POST', '/admin/users/' + rid.user.id, adm.token, { role: 'rider' });
+await call('POST', '/seller/apply', sel.token, { shopName: 'Demo Gadgets', bvnName: 'Ada Obi', bankAccountName: 'Obi Ada' });
+await call('POST', '/admin/kyc/' + sel.user.id, adm.token, { approve: true });
+const prod = await call('POST', '/seller/products', sel.token, { name: 'Earbuds', category: 'Gadgets', price: 2200000 });
+await call('POST', '/admin/coupons', adm.token, { code: 'NEX10', pct: 10 });
+const { group, orders: [order] } = await call('POST', '/checkout', buy.token, { items: [prod.id], coupon: 'NEX10' });
+await call('POST', '/dev/pay-group/' + group, buy.token);
+await call('POST', `/orders/${order.id}/dispatch`, sel.token, { riderId: rid.user.id });
+const { code } = await call('GET', '/orders/' + order.id, buy.token);
+await call('POST', `/orders/${order.id}/confirm`, rid.token, { code });
+const d = await call('GET', '/seller/dashboard', sel.token), s = await call('GET', '/admin/summary', adm.token), po = await call('POST', '/admin/payouts/run', adm.token);
+console.log({ sellerAvailableKobo: d.available, commissionKobo: s.commission, ledgerBalanced: s.balanced, payoutsQueued: po.length });
+const g = await call('POST', '/checkout', buy.token, { items: [prod.id, prod.id], coupon: 'NEX10' }); await call('POST', '/dev/pay-group/' + g.group, buy.token);
+const lists = await Promise.all([['/riders', sel], ['/seller/products', sel], ['/admin/sellers', adm], ['/admin/products', adm], ['/admin/users', adm], ['/admin/audit', adm]].map(([p, w]) => call('GET', p, w.token)));
+console.log({ cartOrders: g.orders.length, cartTotalKobo: g.total, listSizes: lists.map(l => l.length) });
